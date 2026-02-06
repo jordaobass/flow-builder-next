@@ -1,36 +1,93 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Flow Builder - POC (Proof of Concept)
 
-## Getting Started
+> **This is a proof of concept / prototype only.** It is not production-ready software. Built as a technical demonstration of a visual policy decision engine using React Flow.
 
-First, run the development server:
+## What is this?
+
+A visual policy builder that lets you create decision flows through a drag-and-drop interface. The idea is simple:
+
+1. **Define parameters** (country, state, company, department...) that act as filters
+2. **Create questions** (yes/no, select, number, text) that users will answer
+3. **Build policies** by combining a scope (filter) + questions + decision rules
+4. **Design the flow visually** using React Flow with condition nodes (true/false branches)
+5. **Test it** in a demo that picks the right policy and runs the questionnaire
+
+The engine automatically selects the correct policy based on the context (e.g., country=BR, companyId=BANK_A) and evaluates the answers against the decision rules.
+
+## Included Example Scenarios
+
+The app comes with 4 pre-loaded scenarios to demonstrate different use cases:
+
+| Scenario | Scope | What it does |
+|----------|-------|-------------|
+| **Uber Release** | BR / SP / EMP_X | Driver worked? Missed stop? Vehicle condition? |
+| **Credit Approval** | BR / BANK_A | Credit score, income, employment, property check |
+| **Medical Triage** | BR / SAO_PAULO / HOSP_A | Conscious? Chest pain? Temperature? Pain level? |
+| **Expense Approval** | BR / CORP_X / Technology | Amount, receipt, manager approval, approver name |
+
+## Tech Stack
+
+- **Next.js 16** (App Router) + **React 19** + **TypeScript**
+- **React Flow** (@xyflow/react) for the visual editor
+- **Zustand** for state management
+- **Tailwind CSS v4** + **shadcn/ui** for the UI
+- **sessionStorage** for persistence (data resets when you close the tab)
+
+## Running Locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000 - the app loads with seed data automatically.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+src/
+  app/                        # Next.js routes
+    (main)/                   # Layout with sidebar
+      getting-started/        # Guide page
+      parameters/             # CRUD for scope parameters
+      questions/              # CRUD for question bank
+      policies/               # CRUD for policies
+      demo/                   # Test the flow
+    builder/[policyId]/       # Visual flow editor (full-screen)
+  components/
+    builder/                  # React Flow canvas, nodes, palette, inspector
+    demo/                     # Context picker, flow modal, result display
+    parameters/               # Parameter table and form
+    policies/                 # Policy table, form, duplicate dialog
+    questions/                # Question table and form
+    layout/                   # Sidebar shell
+    ui/                       # shadcn/ui components
+  stores/                     # Zustand stores (parameter, question, policy, builder)
+  types/                      # TypeScript types
+  lib/                        # Engine, converter, seed data, constants
+```
 
-## Learn More
+## How it Works
 
-To learn more about Next.js, take a look at the following resources:
+1. **Scope-based policy selection**: Each policy defines a scope (key-value pairs). When running the demo, the engine scores all policies against the provided context and picks the best match.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+2. **Visual flow builder**: 4 node types:
+   - **Filter** (blue) - displays the policy scope
+   - **Question** (white) - a step the user answers
+   - **Condition** (purple) - evaluates an answer with true/false branches
+   - **End** (green/red/amber) - final decision: ALLOW, BLOCK, or REVIEW
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+3. **Bidirectional conversion**: The flow graph converts to/from the Policy data model, so you can edit visually and save back to the store.
 
-## Deploy on Vercel
+## Limitations (it's a POC)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Data is stored in **sessionStorage** - closes the tab, loses the data
+- No authentication, no database, no API
+- No real-time collaboration
+- The flow converter handles basic AND/OR condition chains but complex nested logic may need manual JSON editing
+- No undo/redo in the visual editor
+- No automated tests
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+
+This is a proof of concept for demonstration purposes.
