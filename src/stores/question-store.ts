@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { Question } from '@/types/question';
-import { STORAGE_KEYS } from '@/lib/constants';
-import { loadFromSession, saveToSession } from '@/lib/storage';
+import { STORAGE_KEYS, SEED_VERSION } from '@/lib/constants';
+import { loadFromSession, saveToSession, checkSeedVersion, saveSeedVersion } from '@/lib/storage';
 import { SEED_QUESTIONS } from '@/lib/seed-data';
 
 interface QuestionStore {
@@ -20,11 +20,13 @@ export const useQuestionStore = create<QuestionStore>((set, get) => ({
   hydrated: false,
 
   hydrate: () => {
+    const needsReseed = checkSeedVersion(SEED_VERSION, STORAGE_KEYS.SEED_VERSION);
     const stored = loadFromSession<Question[]>(STORAGE_KEYS.QUESTIONS, []);
-    if (stored.length > 0) {
+    if (stored.length > 0 && !needsReseed) {
       set({ questions: stored, hydrated: true });
     } else {
       saveToSession(STORAGE_KEYS.QUESTIONS, SEED_QUESTIONS);
+      saveSeedVersion(SEED_VERSION, STORAGE_KEYS.SEED_VERSION);
       set({ questions: SEED_QUESTIONS, hydrated: true });
     }
   },

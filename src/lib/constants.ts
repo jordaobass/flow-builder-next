@@ -1,7 +1,10 @@
+export const SEED_VERSION = 2;
+
 export const STORAGE_KEYS = {
   QUESTIONS: 'FLOW_POC::questions',
   POLICIES: 'FLOW_POC::policies',
   PARAMETERS: 'FLOW_POC::parameters',
+  SEED_VERSION: 'FLOW_POC::seed_version',
 } as const;
 
 export const DECISION_COLORS: Record<string, string> = {

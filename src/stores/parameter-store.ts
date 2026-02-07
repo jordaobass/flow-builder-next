@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { Parameter } from '@/types/parameter';
-import { STORAGE_KEYS } from '@/lib/constants';
-import { loadFromSession, saveToSession } from '@/lib/storage';
+import { STORAGE_KEYS, SEED_VERSION } from '@/lib/constants';
+import { loadFromSession, saveToSession, checkSeedVersion, saveSeedVersion } from '@/lib/storage';
 import { SEED_PARAMETERS } from '@/lib/seed-data';
 
 interface ParameterStore {
@@ -21,11 +21,13 @@ export const useParameterStore = create<ParameterStore>((set, get) => ({
   hydrated: false,
 
   hydrate: () => {
+    const needsReseed = checkSeedVersion(SEED_VERSION, STORAGE_KEYS.SEED_VERSION);
     const stored = loadFromSession<Parameter[]>(STORAGE_KEYS.PARAMETERS, []);
-    if (stored.length > 0) {
+    if (stored.length > 0 && !needsReseed) {
       set({ parameters: stored, hydrated: true });
     } else {
       saveToSession(STORAGE_KEYS.PARAMETERS, SEED_PARAMETERS);
+      saveSeedVersion(SEED_VERSION, STORAGE_KEYS.SEED_VERSION);
       set({ parameters: SEED_PARAMETERS, hydrated: true });
     }
   },

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { Policy } from '@/types/policy';
-import { STORAGE_KEYS } from '@/lib/constants';
-import { loadFromSession, saveToSession } from '@/lib/storage';
+import { STORAGE_KEYS, SEED_VERSION } from '@/lib/constants';
+import { loadFromSession, saveToSession, checkSeedVersion, saveSeedVersion } from '@/lib/storage';
 import { SEED_POLICIES } from '@/lib/seed-data';
 
 interface PolicyStore {
@@ -21,11 +21,13 @@ export const usePolicyStore = create<PolicyStore>((set, get) => ({
   hydrated: false,
 
   hydrate: () => {
+    const needsReseed = checkSeedVersion(SEED_VERSION, STORAGE_KEYS.SEED_VERSION);
     const stored = loadFromSession<Policy[]>(STORAGE_KEYS.POLICIES, []);
-    if (stored.length > 0) {
+    if (stored.length > 0 && !needsReseed) {
       set({ policies: stored, hydrated: true });
     } else {
       saveToSession(STORAGE_KEYS.POLICIES, SEED_POLICIES);
+      saveSeedVersion(SEED_VERSION, STORAGE_KEYS.SEED_VERSION);
       set({ policies: SEED_POLICIES, hydrated: true });
     }
   },
