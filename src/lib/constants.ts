@@ -1,4 +1,4 @@
-export const SEED_VERSION = 2;
+export const SEED_VERSION = 3;
 
 export const STORAGE_KEYS = {
   QUESTIONS: 'FLOW_POC::questions',

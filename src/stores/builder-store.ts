@@ -9,11 +9,22 @@ import {
   MarkerType,
 } from '@xyflow/react';
 
+interface HistoryEntry {
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+}
+
+const MAX_HISTORY = 50;
+
 interface BuilderStore {
   nodes: FlowNode[];
   edges: FlowEdge[];
   selectedNodeId: string | null;
   dirty: boolean;
+  // Undo/Redo
+  history: HistoryEntry[];
+  historyIndex: number;
+  // Actions
   setNodes: (nodes: FlowNode[]) => void;
   setEdges: (edges: FlowEdge[]) => void;
   onNodesChange: (changes: NodeChange[]) => void;
@@ -25,6 +36,17 @@ interface BuilderStore {
   selectNode: (id: string | null) => void;
   setDirty: (dirty: boolean) => void;
   reset: () => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
+}
+
+function pushHistory(state: { nodes: FlowNode[]; edges: FlowEdge[]; history: HistoryEntry[]; historyIndex: number }) {
+  const newHistory = state.history.slice(0, state.historyIndex + 1);
+  newHistory.push({ nodes: state.nodes, edges: state.edges });
+  if (newHistory.length > MAX_HISTORY) newHistory.shift();
+  return { history: newHistory, historyIndex: newHistory.length - 1 };
 }
 
 export const useBuilderStore = create<BuilderStore>((set, get) => ({
@@ -32,26 +54,37 @@ export const useBuilderStore = create<BuilderStore>((set, get) => ({
   edges: [],
   selectedNodeId: null,
   dirty: false,
+  history: [],
+  historyIndex: -1,
 
   setNodes: (nodes) => set({ nodes }),
   setEdges: (edges) => set({ edges }),
 
   onNodesChange: (changes) => {
+    const prev = get();
+    const newNodes = applyNodeChanges(changes, prev.nodes) as FlowNode[];
+    const hist = pushHistory(prev);
     set({
-      nodes: applyNodeChanges(changes, get().nodes) as FlowNode[],
+      nodes: newNodes,
       dirty: true,
+      ...hist,
     });
   },
 
   onEdgesChange: (changes) => {
+    const prev = get();
+    const newEdges = applyEdgeChanges(changes, prev.edges) as FlowEdge[];
+    const hist = pushHistory(prev);
     set({
-      edges: applyEdgeChanges(changes, get().edges) as FlowEdge[],
+      edges: newEdges,
       dirty: true,
+      ...hist,
     });
   },
 
   onConnect: (connection) => {
-    const sourceNode = get().nodes.find((n) => n.id === connection.source);
+    const prev = get();
+    const sourceNode = prev.nodes.find((n) => n.id === connection.source);
     let edgeProps: Partial<FlowEdge> = {};
 
     if (sourceNode?.type === 'condition' && connection.sourceHandle) {
@@ -72,31 +105,41 @@ export const useBuilderStore = create<BuilderStore>((set, get) => ({
       ...edgeProps,
     };
 
+    const hist = pushHistory(prev);
     set({
-      edges: [...get().edges, edge],
+      edges: [...prev.edges, edge],
       dirty: true,
+      ...hist,
     });
   },
 
   addNode: (node) => {
-    set({ nodes: [...get().nodes, node], dirty: true });
+    const prev = get();
+    const hist = pushHistory(prev);
+    set({ nodes: [...prev.nodes, node], dirty: true, ...hist });
   },
 
   updateNodeData: (id, data) => {
+    const prev = get();
+    const hist = pushHistory(prev);
     set({
-      nodes: get().nodes.map((n) =>
+      nodes: prev.nodes.map((n) =>
         n.id === id ? { ...n, data: { ...n.data, ...data } } : n
       ) as FlowNode[],
       dirty: true,
+      ...hist,
     });
   },
 
   removeNode: (id) => {
+    const prev = get();
+    const hist = pushHistory(prev);
     set({
-      nodes: get().nodes.filter((n) => n.id !== id),
-      edges: get().edges.filter((e) => e.source !== id && e.target !== id),
-      selectedNodeId: get().selectedNodeId === id ? null : get().selectedNodeId,
+      nodes: prev.nodes.filter((n) => n.id !== id),
+      edges: prev.edges.filter((e) => e.source !== id && e.target !== id),
+      selectedNodeId: prev.selectedNodeId === id ? null : prev.selectedNodeId,
       dirty: true,
+      ...hist,
     });
   },
 
@@ -105,5 +148,33 @@ export const useBuilderStore = create<BuilderStore>((set, get) => ({
   setDirty: (dirty) => set({ dirty }),
 
   reset: () =>
-    set({ nodes: [], edges: [], selectedNodeId: null, dirty: false }),
+    set({ nodes: [], edges: [], selectedNodeId: null, dirty: false, history: [], historyIndex: -1 }),
+
+  undo: () => {
+    const { history, historyIndex } = get();
+    if (historyIndex < 0) return;
+    const entry = history[historyIndex];
+    set({
+      nodes: entry.nodes,
+      edges: entry.edges,
+      historyIndex: historyIndex - 1,
+      dirty: true,
+    });
+  },
+
+  redo: () => {
+    const { history, historyIndex } = get();
+    if (historyIndex >= history.length - 1) return;
+    const entry = history[historyIndex + 2] ?? history[historyIndex + 1];
+    if (!entry) return;
+    set({
+      nodes: entry.nodes,
+      edges: entry.edges,
+      historyIndex: historyIndex + 1,
+      dirty: true,
+    });
+  },
+
+  canUndo: () => get().historyIndex >= 0,
+  canRedo: () => get().historyIndex < get().history.length - 1,
 }));

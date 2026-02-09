@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { EvaluationResult } from '@/types/engine';
 import { DECISION_BADGE_VARIANTS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import { ArrowLeft, RotateCcw } from 'lucide-react';
 
 interface ResultDisplayProps {
   result: EvaluationResult;
@@ -50,9 +51,16 @@ export function ResultDisplay({ result, onReset }: ResultDisplayProps) {
             ))}
           </div>
         </div>
-        <Button onClick={onReset} variant="outline" className="w-full">
-          Run Again
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={onReset} variant="outline" className="flex-1 gap-1.5">
+            <ArrowLeft className="size-3.5" />
+            Back to Demos
+          </Button>
+          <Button onClick={onReset} className="flex-1 gap-1.5">
+            <RotateCcw className="size-3.5" />
+            Run Again
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

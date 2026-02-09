@@ -11,6 +11,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Policy } from '@/types/policy';
 import { useParameterStore } from '@/stores/parameter-store';
 
@@ -65,14 +66,24 @@ function PolicyFormContent({
   const initialScopeValues = (() => {
     const sv: Record<string, string> = {};
     for (const p of parameters) {
-      sv[p.key] = policy ? String(policy.scope[p.key] ?? '') : '';
+      if (policy && p.key in policy.scope) {
+        sv[p.key] = String(policy.scope[p.key] ?? '');
+      }
     }
     return sv;
+  })();
+
+  const initialEnabledKeys = (() => {
+    if (policy) {
+      return new Set(Object.keys(policy.scope));
+    }
+    return new Set<string>();
   })();
 
   const [name, setName] = useState(policy?.name ?? '');
   const [key, setKey] = useState(policy?.key ?? '');
   const [scopeValues, setScopeValues] = useState<Record<string, string>>(initialScopeValues);
+  const [enabledKeys, setEnabledKeys] = useState<Set<string>>(initialEnabledKeys);
   const [stepsJson, setStepsJson] = useState(
     policy ? JSON.stringify(policy.steps, null, 2) : '[]'
   );
@@ -83,13 +94,29 @@ function PolicyFormContent({
 
   const isEditing = !!policy;
 
+  const toggleScopeKey = (paramKey: string, enabled: boolean) => {
+    setEnabledKeys((prev) => {
+      const next = new Set(prev);
+      if (enabled) {
+        next.add(paramKey);
+        if (!(paramKey in scopeValues)) {
+          setScopeValues((sv) => ({ ...sv, [paramKey]: '' }));
+        }
+      } else {
+        next.delete(paramKey);
+      }
+      return next;
+    });
+  };
+
   const handleSave = () => {
     try {
       const steps = JSON.parse(stepsJson);
       const decision = JSON.parse(decisionJson);
 
       const scope: Record<string, string | number | boolean> = {};
-      for (const [k, v] of Object.entries(scopeValues)) {
+      for (const k of enabledKeys) {
+        const v = scopeValues[k] ?? '';
         if (v.trim()) {
           scope[k] = v.trim();
         }
@@ -132,20 +159,36 @@ function PolicyFormContent({
         </div>
 
         <div>
-          <Label className="text-sm font-semibold">Scope</Label>
-          <div className="grid grid-cols-2 gap-3 mt-2">
-            {parameters.map((p) => (
-              <div key={p.key} className="space-y-1">
-                <Label className="text-xs">{p.name}</Label>
-                <Input
-                  value={scopeValues[p.key] ?? ''}
-                  onChange={(e) =>
-                    setScopeValues((prev) => ({ ...prev, [p.key]: e.target.value }))
-                  }
-                  placeholder={p.key}
-                />
-              </div>
-            ))}
+          <Label className="text-sm font-semibold">Scope Parameters</Label>
+          <p className="text-xs text-muted-foreground mt-0.5 mb-2">Select which parameters are part of this policy&apos;s scope:</p>
+          <div className="space-y-2">
+            {parameters.map((p) => {
+              const isEnabled = enabledKeys.has(p.key);
+              return (
+                <div key={p.key} className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id={`scope-param-${p.key}`}
+                      checked={isEnabled}
+                      onCheckedChange={(checked) => toggleScopeKey(p.key, !!checked)}
+                    />
+                    <Label htmlFor={`scope-param-${p.key}`} className="text-sm cursor-pointer">
+                      {p.name} <span className="text-muted-foreground text-xs">({p.key})</span>
+                    </Label>
+                  </div>
+                  {isEnabled && (
+                    <Input
+                      className="ml-6"
+                      value={scopeValues[p.key] ?? ''}
+                      onChange={(e) =>
+                        setScopeValues((prev) => ({ ...prev, [p.key]: e.target.value }))
+                      }
+                      placeholder={`Value for ${p.key}...`}
+                    />
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
 

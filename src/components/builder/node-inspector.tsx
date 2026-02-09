@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useBuilderStore } from '@/stores/builder-store';
 import { useQuestionStore } from '@/stores/question-store';
 import { useParameterStore } from '@/stores/parameter-store';
@@ -7,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -14,14 +16,58 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { FilterNodeData, QuestionNodeData, ConditionNodeData, EndNodeData } from '@/types/flow';
 import { DecisionResult, ConditionOperator } from '@/types/policy';
+import { Trash2 } from 'lucide-react';
+
+function RemoveNodeButton({ nodeId, nodeType }: { nodeId: string; nodeType: string }) {
+  const removeNode = useBuilderStore((s) => s.removeNode);
+  const [open, setOpen] = useState(false);
+
+  return (
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialogTrigger asChild>
+        <Button variant="destructive" size="sm" className="w-full gap-2">
+          <Trash2 className="size-3.5" />
+          Remove Node
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Remove {nodeType} node?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will remove the node and all its connections. This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            variant="destructive"
+            onClick={() => removeNode(nodeId)}
+          >
+            Remove
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
 
 export function NodeInspector() {
   const selectedNodeId = useBuilderStore((s) => s.selectedNodeId);
   const nodes = useBuilderStore((s) => s.nodes);
   const updateNodeData = useBuilderStore((s) => s.updateNodeData);
-  const removeNode = useBuilderStore((s) => s.removeNode);
   const questions = useQuestionStore((s) => s.questions);
   const parameters = useParameterStore((s) => s.parameters);
 
@@ -37,25 +83,48 @@ export function NodeInspector() {
 
   if (node.type === 'filter') {
     const data = node.data as unknown as FilterNodeData;
+    const toggleParam = (key: string, enabled: boolean) => {
+      if (enabled) {
+        updateNodeData(node.id, { scope: { ...data.scope, [key]: '' } });
+      } else {
+        const next = { ...data.scope };
+        delete next[key];
+        updateNodeData(node.id, { scope: next });
+      }
+    };
     return (
       <div className="p-4 space-y-3">
         <h3 className="font-semibold text-sm">Filter Node</h3>
-        {parameters.map((p) => (
-          <div key={p.key} className="space-y-1">
-            <Label className="text-xs">{p.name}</Label>
-            <Input
-              value={String(data.scope[p.key] ?? '')}
-              onChange={(e) =>
-                updateNodeData(node.id, {
-                  scope: {
-                    ...data.scope,
-                    ...(e.target.value ? { [p.key]: e.target.value } : (() => { const s = { ...data.scope }; delete s[p.key]; return s; })()),
-                  },
-                })
-              }
-            />
-          </div>
-        ))}
+        <p className="text-xs text-muted-foreground">Select which fields are part of the scope:</p>
+        {parameters.map((p) => {
+          const isIncluded = p.key in data.scope;
+          return (
+            <div key={p.key} className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id={`scope-${p.key}`}
+                  checked={isIncluded}
+                  onCheckedChange={(checked) => toggleParam(p.key, !!checked)}
+                />
+                <Label htmlFor={`scope-${p.key}`} className="text-xs cursor-pointer">
+                  {p.name} <span className="text-muted-foreground">({p.key})</span>
+                </Label>
+              </div>
+              {isIncluded && (
+                <Input
+                  className="ml-6 bg-background"
+                  placeholder={`Value for ${p.key}...`}
+                  value={String(data.scope[p.key] ?? '')}
+                  onChange={(e) =>
+                    updateNodeData(node.id, {
+                      scope: { ...data.scope, [p.key]: e.target.value },
+                    })
+                  }
+                />
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   }
@@ -71,7 +140,7 @@ export function NodeInspector() {
             value={data.questionId}
             onValueChange={(v) => updateNodeData(node.id, { questionId: v })}
           >
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -83,13 +152,7 @@ export function NodeInspector() {
             </SelectContent>
           </Select>
         </div>
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={() => removeNode(node.id)}
-        >
-          Remove Node
-        </Button>
+        <RemoveNodeButton nodeId={node.id} nodeType="question" />
       </div>
     );
   }
@@ -108,7 +171,7 @@ export function NodeInspector() {
             value={questionId}
             onValueChange={(v) => updateNodeData(node.id, { field: `$answers.${v}` })}
           >
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -126,7 +189,7 @@ export function NodeInspector() {
             value={data.operator}
             onValueChange={(v) => updateNodeData(node.id, { operator: v as ConditionOperator })}
           >
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -147,7 +210,7 @@ export function NodeInspector() {
               value={String(data.value)}
               onValueChange={(v) => updateNodeData(node.id, { value: v === 'true' })}
             >
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -160,7 +223,7 @@ export function NodeInspector() {
               value={String(data.value)}
               onValueChange={(v) => updateNodeData(node.id, { value: v })}
             >
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -184,13 +247,7 @@ export function NodeInspector() {
             />
           )}
         </div>
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={() => removeNode(node.id)}
-        >
-          Remove Node
-        </Button>
+        <RemoveNodeButton nodeId={node.id} nodeType="condition" />
       </div>
     );
   }
@@ -208,7 +265,7 @@ export function NodeInspector() {
               updateNodeData(node.id, { result: v as DecisionResult })
             }
           >
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -227,23 +284,16 @@ export function NodeInspector() {
           />
         </div>
         <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
+          <Checkbox
             id="isDefault"
             checked={data.isDefault ?? false}
-            onChange={(e) =>
-              updateNodeData(node.id, { isDefault: e.target.checked })
+            onCheckedChange={(checked) =>
+              updateNodeData(node.id, { isDefault: !!checked })
             }
           />
-          <Label htmlFor="isDefault">Default end node</Label>
+          <Label htmlFor="isDefault" className="text-sm cursor-pointer">Default end node</Label>
         </div>
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={() => removeNode(node.id)}
-        >
-          Remove Node
-        </Button>
+        <RemoveNodeButton nodeId={node.id} nodeType="end" />
       </div>
     );
   }

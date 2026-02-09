@@ -15,10 +15,12 @@ import { useState } from 'react';
 import { DecisionResult, ConditionOperator } from '@/types/policy';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { MessageCircleQuestion, GitFork, CircleStop } from 'lucide-react';
 
 export function NodePalette() {
   const addNode = useBuilderStore((s) => s.addNode);
   const nodes = useBuilderStore((s) => s.nodes);
+  const selectedNodeId = useBuilderStore((s) => s.selectedNodeId);
   const questions = useQuestionStore((s) => s.questions);
   const [selectedQuestionId, setSelectedQuestionId] = useState('');
   const [selectedResult, setSelectedResult] = useState<DecisionResult>('ALLOW');
@@ -28,17 +30,23 @@ export function NodePalette() {
   const [condOperator, setCondOperator] = useState<ConditionOperator>('eq');
   const [condValue, setCondValue] = useState('');
 
-  const getNextY = () => {
-    if (nodes.length === 0) return 50;
-    return Math.max(...nodes.map((n) => n.position.y)) + 140;
+  const getSmartPosition = () => {
+    const selected = nodes.find((n) => n.id === selectedNodeId);
+    if (selected) {
+      return { x: selected.position.x, y: selected.position.y + 140 };
+    }
+    if (nodes.length === 0) return { x: 300, y: 50 };
+    const maxY = Math.max(...nodes.map((n) => n.position.y));
+    return { x: 300, y: maxY + 140 };
   };
 
   const addQuestionNode = () => {
     if (!selectedQuestionId) return;
+    const pos = getSmartPosition();
     const node: FlowNode = {
       id: `question_${selectedQuestionId}_${Date.now()}`,
       type: 'question',
-      position: { x: 300, y: getNextY() },
+      position: pos,
       data: { questionId: selectedQuestionId },
     };
     addNode(node);
@@ -52,10 +60,11 @@ export function NodePalette() {
     else if (condValue === 'false') parsedValue = false;
     else if (!isNaN(Number(condValue)) && condValue.trim() !== '') parsedValue = Number(condValue);
 
+    const pos = getSmartPosition();
     const node: FlowNode = {
       id: `condition_${Date.now()}`,
       type: 'condition',
-      position: { x: 300, y: getNextY() },
+      position: pos,
       data: {
         field: `$answers.${condField}`,
         operator: condOperator,
@@ -67,10 +76,11 @@ export function NodePalette() {
   };
 
   const addEndNode = () => {
+    const pos = getSmartPosition();
     const node: FlowNode = {
       id: `end_${Date.now()}`,
       type: 'end',
-      position: { x: 300, y: getNextY() },
+      position: pos,
       data: {
         result: selectedResult,
         reason: `${selectedResult} decision.`,
@@ -81,33 +91,40 @@ export function NodePalette() {
   };
 
   return (
-    <div className="p-4 space-y-4 border-b">
+    <div className="p-3 space-y-2 border-b overflow-hidden">
       <h3 className="font-semibold text-sm">Add Nodes</h3>
 
-      <div className="space-y-2">
-        <div className="flex gap-2">
-          <Select value={selectedQuestionId} onValueChange={setSelectedQuestionId}>
-            <SelectTrigger className="flex-1">
-              <SelectValue placeholder="Select question..." />
-            </SelectTrigger>
-            <SelectContent>
-              {questions.map((q) => (
-                <SelectItem key={q.id} value={q.id}>
-                  {q.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button size="sm" onClick={addQuestionNode} disabled={!selectedQuestionId}>
-            + Q
-          </Button>
+      {/* Question Node */}
+      <div className="rounded-md border bg-muted/30 p-2 space-y-2">
+        <div className="flex items-center gap-1.5">
+          <MessageCircleQuestion className="size-3.5 text-gray-500 shrink-0" />
+          <Label className="text-xs font-medium text-gray-600">Question</Label>
         </div>
+        <Select value={selectedQuestionId} onValueChange={setSelectedQuestionId}>
+          <SelectTrigger className="w-full bg-background">
+            <SelectValue placeholder="Select question..." />
+          </SelectTrigger>
+          <SelectContent>
+            {questions.map((q) => (
+              <SelectItem key={q.id} value={q.id}>
+                {q.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button size="sm" className="w-full" onClick={addQuestionNode} disabled={!selectedQuestionId}>
+          + Add
+        </Button>
       </div>
 
-      <div className="space-y-2">
-        <Label className="text-xs font-medium text-purple-600">Condition</Label>
+      {/* Condition Node */}
+      <div className="rounded-md border border-purple-200 bg-purple-50/30 p-2 space-y-2">
+        <div className="flex items-center gap-1.5">
+          <GitFork className="size-3.5 text-purple-500 shrink-0" />
+          <Label className="text-xs font-medium text-purple-600">Condition</Label>
+        </div>
         <Select value={condField} onValueChange={setCondField}>
-          <SelectTrigger>
+          <SelectTrigger className="w-full bg-background">
             <SelectValue placeholder="Field (question)..." />
           </SelectTrigger>
           <SelectContent>
@@ -118,9 +135,9 @@ export function NodePalette() {
             ))}
           </SelectContent>
         </Select>
-        <div className="flex gap-2">
+        <div className="flex gap-1.5 min-w-0">
           <Select value={condOperator} onValueChange={(v) => setCondOperator(v as ConditionOperator)}>
-            <SelectTrigger className="w-20">
+            <SelectTrigger className="w-16 shrink-0 bg-background">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -134,20 +151,25 @@ export function NodePalette() {
             </SelectContent>
           </Select>
           <Input
-            className="flex-1"
+            className="flex-1 min-w-0 bg-background"
             placeholder="Value..."
             value={condValue}
             onChange={(e) => setCondValue(e.target.value)}
           />
-          <Button size="sm" onClick={addConditionNode} disabled={!condField}>
-            + C
-          </Button>
         </div>
+        <Button size="sm" className="w-full" onClick={addConditionNode} disabled={!condField}>
+          + Add
+        </Button>
       </div>
 
-      <div className="flex gap-2">
+      {/* End Node */}
+      <div className="rounded-md border border-green-200 bg-green-50/30 p-2 space-y-2">
+        <div className="flex items-center gap-1.5">
+          <CircleStop className="size-3.5 text-green-500 shrink-0" />
+          <Label className="text-xs font-medium text-green-700">End Node</Label>
+        </div>
         <Select value={selectedResult} onValueChange={(v) => setSelectedResult(v as DecisionResult)}>
-          <SelectTrigger className="flex-1">
+          <SelectTrigger className="w-full bg-background">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -156,8 +178,8 @@ export function NodePalette() {
             <SelectItem value="REVIEW">REVIEW</SelectItem>
           </SelectContent>
         </Select>
-        <Button size="sm" onClick={addEndNode}>
-          + End
+        <Button size="sm" className="w-full" onClick={addEndNode}>
+          + Add
         </Button>
       </div>
     </div>
